@@ -243,6 +243,7 @@ var TPLS=[
  {k:'mua_tinh',n:'Mua nhiều tính tiền ít',s:['A4','A5'],f:'tag ten* mua* tinh* giadv cond tu den'},
  {k:'hoa_don',n:'Tặng quà theo hóa đơn',s:['A4','A5'],f:'tag nhom* muc* slqua* qua* cond tu den'},
  {k:'thong_diep',n:'Thông điệp / hàng tươi',s:['A4','A5'],f:'tag ten* msg* extra cond tu den'},
+ {k:'gia_bac',n:'Giá lẻ + giá mua nhiều',s:['A4','A5'],f:'tag ten* gia* dvt* sl2* dv2 gia2* sl3 dv3 gia3 cond tu den'},
  {k:'nep_gia',n:'Nẹp giá có giá gạch',s:['NEP'],f:'ten* goc gia* dvt* cond tu den'},
  {k:'nep_tang',n:'Nẹp mua tặng',s:['NEP'],f:'ten* mua* tang* qua* cond tu den'}
 ];
@@ -268,6 +269,12 @@ var FD={
  slqua:{l:'SL quà',n:1,ph:'1',g:2},
  msg:{l:'Thông điệp chính',full:1,ta:1,ph:'VD: RAU TƯƠI MỖI NGÀY',g:2},
  extra:{l:'Thông tin bổ sung',full:1,ph:'VD: Thu hoạch sáng nay',g:2},
+ sl2:{l:'Mua số lượng',n:1,ph:'2',g:2},
+ dv2:{l:'Đơn vị (trống = như ĐVT)',ph:'kg',g:2},
+ gia2:{l:'Giá khi mua số lượng đó',m:1,ph:'40.000',full:1,g:2},
+ sl3:{l:'Mức 2 · số lượng (nếu có)',n:1,ph:'5',g:2},
+ dv3:{l:'Mức 2 · đơn vị',ph:'kg',g:2},
+ gia3:{l:'Mức 2 · giá (nếu có)',m:1,ph:'90.000',full:1,g:2},
  cond:{l:'Điều kiện áp dụng',full:1,ph:'VD: Số lượng có hạn',g:3},
  tu:{l:'Từ ngày',date:1,g:3},
  den:{l:'Đến ngày',date:1,g:3}
@@ -300,7 +307,7 @@ function spec(it){
   var r,r2;
   if(!nep&&val(d,'tag'))head.push(T(val(d,'tag').toUpperCase(),0,{wt:900,r:.068,inv:1}));
   r=it.tpl==='hoa_don'?P('nhom','NHÓM HÀNG ÁP DỤNG'):P('ten',it.tpl==='thong_diep'?'TÊN SẢN PHẨM HOẶC NHÓM HÀNG':'TÊN SẢN PHẨM VÀ QUY CÁCH');
-  head.push(T(r[0].toUpperCase(),r[1],{wt:900,r:nep?.17:.085,w:!nep,max:2,one:1}));
+  head.push(T(r[0].toUpperCase(),r[1],{wt:900,r:nep?.17:.1,w:!nep,max:2,one:1}));
   var ft=[val(d,'cond'),dateLine(d)].filter(Boolean).join('   •   ');
   if(ft)foot.push(T(ft,0,{wt:600,r:nep?.095:.042,w:1,max:2,col:'#222'}));
   function old(){if(val(d,'goc'))body.push(T(moneyN(d.goc)+'đ',0,{wt:700,r:nep?.42:.3,s:1,col:'#444'}))}
@@ -330,6 +337,17 @@ function spec(it){
     r=P('muc','MỨC HÓA ĐƠN');body.push(PR(r[1]?r[0]:moneyN(r[0]),r[1],'',{r:.7}));
     r=P('slqua','SL');body.push(T('TẶNG '+r[0],r[1],{r:.5,x:1,inv:1}));
     r=P('qua','TÊN QUÀ VÀ QUY CÁCH');body.push(T(r[0],r[1],{wt:700,r:.22,w:1,max:2}));
+    break;
+  case 'gia_bac':
+    r=P('gia','GIÁ LẺ');r2=P('dvt','ĐVT');
+    body.push(T('Giá '+(r[1]?r[0]:moneyN(r[0])+'đ')+'/'+r2[0],r[1]||r2[1],{wt:800,r:.3}));
+    var qu=function(q,u){u=(u||'').toUpperCase();return q+(u?(u.length<=2?'':' ')+u:'')};
+    var u2=val(d,'dv2')||val(d,'dvt');r=P('sl2','SL');
+    body.push(T('MUA '+qu(r[0],u2)+' CHỈ',r[1],{r:.42,x:1,inv:1}));
+    r=P('gia2','GIÁ MUA NHIỀU');body.push(PR(r[1]?r[0]:moneyN(r[0]),r[1],'',{r:1}));
+    var g1=+digits(d.gia),q2=parseFloat(String(d.sl2||'').replace(',','.')),g2=+digits(d.gia2);
+    if(g1&&q2>0&&g2&&g1*q2>g2)body.push(T('Tiết kiệm '+money(String(Math.round(g1*q2-g2)))+'đ',0,{wt:800,r:.24}));
+    if(val(d,'sl3')&&val(d,'gia3'))body.push(T('Mua '+qu(val(d,'sl3'),val(d,'dv3')||val(d,'dvt')).toLowerCase()+': '+moneyN(d.gia3)+'đ',0,{wt:800,r:.26}));
     break;
   case 'thong_diep':
     r=P('msg','THÔNG ĐIỆP CHÍNH');body.push(T(r[0],r[1],{r:1,w:1,max:3,x:1}));
@@ -694,7 +712,7 @@ var FONTS_READY=(document.fonts&&document.fonts.load?Promise.all(['500','600','8
 drawTplSel();drawSize();drawForm();
 FONTS_READY.then(function(){drawQueue();refresh()});
 /* ---------- Tự cập nhật: luôn dùng một link duy nhất, không cần thêm ?v= ---------- */
-var APP_VER='2026.11.06-6';
+var APP_VER='2026.11.06-7';
 $('#ver').textContent='Phiên bản '+APP_VER;
 function checkUpdate(){
   if(!/^https?:/.test(location.protocol))return;
