@@ -712,7 +712,7 @@ var FONTS_READY=(document.fonts&&document.fonts.load?Promise.all(['500','600','8
 drawTplSel();drawSize();drawForm();
 FONTS_READY.then(function(){drawQueue();refresh()});
 /* ---------- Tự cập nhật: luôn dùng một link duy nhất, không cần thêm ?v= ---------- */
-var APP_VER='2026.11.06-7';
+var APP_VER='2026.11.06-8';
 $('#ver').textContent='Phiên bản '+APP_VER;
 function checkUpdate(){
   if(!/^https?:/.test(location.protocol))return;
