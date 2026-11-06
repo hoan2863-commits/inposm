@@ -299,7 +299,7 @@ function spec(it){
   var r,r2;
   if(!nep&&val(d,'tag'))head.push(T(val(d,'tag').toUpperCase(),0,{wt:900,r:.068,inv:1}));
   r=it.tpl==='hoa_don'?P('nhom','NHÓM HÀNG ÁP DỤNG'):P('ten',it.tpl==='thong_diep'?'TÊN SẢN PHẨM HOẶC NHÓM HÀNG':'TÊN SẢN PHẨM VÀ QUY CÁCH');
-  head.push(T(r[0].toUpperCase(),r[1],{wt:900,r:nep?.17:.085,w:!nep,max:2}));
+  head.push(T(r[0].toUpperCase(),r[1],{wt:900,r:nep?.17:.085,w:!nep,max:2,one:1}));
   var ft=[val(d,'cond'),dateLine(d)].filter(Boolean).join('   •   ');
   if(ft)foot.push(T(ft,0,{wt:600,r:nep?.095:.042,w:1,max:2,col:'#222'}));
   function old(){if(val(d,'goc'))body.push(T(moneyN(d.goc)+'đ',0,{wt:700,r:nep?.42:.3,s:1,col:'#444'}))}
@@ -358,10 +358,15 @@ function meas(ctx,L,s,W){
     return{s:s,rows:[L.num],h:s*.98,w:Math.min(tw,W)};
   }
   var pad=L.inv?s*.8:0,rows,mx,i;
+  /* tên hàng: ưu tiên 1 dòng nếu chỉ phải co tối đa ~25% */
+  if(L.one){ctx.font=F(L.wt,s);var w1=ctx.measureText(L.t).width;if(w1*.75<=W){if(w1>W)s*=W/w1;return{s:s,rows:[L.t],h:s*ROWH,w:Math.min(w1,W)}}}
   for(i=0;i<24;i++){
     ctx.font=F(L.wt,s);
-    if(L.w){var words=L.t.split(/\s+/),cur='';rows=[];
-      words.forEach(function(w){var t=cur?cur+' '+w:w;if(cur&&ctx.measureText(t).width>W){rows.push(cur);cur=w}else cur=t});if(cur)rows.push(cur);
+    if(L.w){
+      var words=L.t.split(/\s+/),greedy=function(Wt){var rs=[],cur='';words.forEach(function(w){var t=cur?cur+' '+w:w;if(cur&&ctx.measureText(t).width>Wt){rs.push(cur);cur=w}else cur=t});if(cur)rs.push(cur);return rs};
+      rows=greedy(W);
+      /* cân dòng: thu hẹp bề ngang tới mức vẫn giữ số dòng → các dòng dài gần bằng nhau, không còn chữ lẻ loi */
+      if(rows.length>1){var n=rows.length,lo2=W*.4,hi2=W,j;for(j=0;j<14;j++){var mm=(lo2+hi2)/2;if(greedy(mm).length<=n)hi2=mm;else lo2=mm}rows=greedy(hi2)}
     }else rows=[L.t];
     mx=0;rows.forEach(function(r){mx=Math.max(mx,ctx.measureText(r).width+pad)});
     if(mx>W){s*=W/mx*.995;continue}
@@ -372,7 +377,7 @@ function meas(ctx,L,s,W){
 }
 function fitBlock(ctx,ls,W,H,gapU){
   function run(k,g){
-    var h=0,out=ls.map(function(L,i){var m=meas(ctx,L,L.r*H*(L.x?k*g:Math.min(k,.5)),W);var gap=i?gapU*Math.min(k,1.6):0;h+=gap+m.h;m.gap=gap;m.L=L;return m});
+    var h=0,out=ls.map(function(L,i){var m=meas(ctx,L,L.r*H*(L.x?k*g:Math.min(k,.6)),W);var gap=i?gapU*Math.min(k,1.6):0;h+=gap+m.h;m.gap=gap;m.L=L;return m});
     return{h:h,out:out};
   }
   var lo=.02,hi=3,i;for(i=0;i<24;i++){var m=(lo+hi)/2;if(run(m,1).h<=H)lo=m;else hi=m}
@@ -414,10 +419,17 @@ function drawPoster(ctx,it,bx,by,bw,bh,pxmm){
   if(fr){ctx.strokeStyle='#000';[[f[0],f[1]],[f[2],f[3]]].forEach(function(a){var lw=a[1]*pxmm,ins=a[0]*pxmm+lw/2;ctx.lineWidth=lw;ctx.strokeRect(bx+ins,by+ins,bw-2*ins,bh-2*ins)})}
   var X=bx+pd[1]*pxmm,Y=by+pd[0]*pxmm,W=bw-2*pd[1]*pxmm,H=bh-2*pd[0]*pxmm,mid=X+W/2;
   var sp=spec(it),G=H*(nep?.035:.03);
-  var hd=fixedBlock(ctx,sp.head,W,H,H*.025),ftb=fixedBlock(ctx,sp.foot,W,H,0);
-  var gHB=sp.body.length?G:0,gBF=sp.foot.length?G*1.4:0;
-  var bodyH=H-hd.h-ftb.h-gHB-gBF;
-  var bd=fitBlock(ctx,sp.body,W,bodyH,H*(nep?.03:.035));
+  var ftb=fixedBlock(ctx,sp.foot,W,H,0);
+  var gHB=sp.body.length?G:0,gBF=sp.foot.length?G*1.4:0,BG=H*(nep?.03:.035);
+  function HD(k){return fixedBlock(ctx,sp.head,W,H*k,H*.025*k)}
+  var hd=HD(1),bodyH=H-hd.h-ftb.h-gHB-gBF,bd=fitBlock(ctx,sp.body,W,bodyH,BG);
+  /* Tiêu đề cân đối: phần thân đã chạm bề ngang mà còn dư chiều cao → phóng to tiêu đề để lấp khoảng trắng */
+  var slack=bodyH-bd.h;
+  if(slack>H*.02){
+    var lo=1,hi=1.8,h0=hd.h,i;
+    for(i=0;i<16;i++){var m=(lo+hi)/2;if(HD(m).h-h0<=slack*.8)lo=m;else hi=m}
+    if(lo>1.01){hd=HD(lo);bodyH=H-hd.h-ftb.h-gHB-gBF;bd=fitBlock(ctx,sp.body,W,bodyH,BG)}
+  }
   drawBlock(ctx,hd,mid,Y);
   drawBlock(ctx,bd,mid,Y+hd.h+gHB+(bodyH-bd.h)/2);
   if(sp.foot.length){
