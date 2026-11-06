@@ -199,6 +199,7 @@ details li{margin-bottom:6px}
         <li><b>Ảnh:</b> nhấn giữ ảnh → “Lưu vào Ảnh”, hoặc bấm “Chia sẻ tất cả”.</li>
         <li>In <b>100% / kích thước thật</b>. Nẹp: mỗi tờ A4 có 2 nẹp, cắt theo viền xám.</li>
       </ol>
+      <div class="hint" id="ver" style="margin-top:8px"></div>
     </details>
   </section>
 </main>
@@ -692,6 +693,22 @@ var rz=0;window.addEventListener('resize',function(){clearTimeout(rz);rz=setTime
 var FONTS_READY=(document.fonts&&document.fonts.load?Promise.all(['500','600','800','900'].map(function(w){return document.fonts.load(w+' 40px "Be Vietnam Pro"','Đặng Ữ 0123')})):Promise.resolve()).catch(function(){});
 drawTplSel();drawSize();drawForm();
 FONTS_READY.then(function(){drawQueue();refresh()});
+/* ---------- Tự cập nhật: luôn dùng một link duy nhất, không cần thêm ?v= ---------- */
+var APP_VER='2026.11.06-6';
+$('#ver').textContent='Phiên bản '+APP_VER;
+function checkUpdate(){
+  if(!/^https?:/.test(location.protocol))return;
+  fetch(location.pathname+'?_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():''}).then(function(t){
+    var m=t&&t.match(/APP_VER='([^']+)'/);
+    if(m&&m[1]!==APP_VER&&$('#scrim').hidden){
+      try{sessionStorage.setItem('posm_updated',m[1])}catch(e){}
+      document.open();document.write(t);document.close();
+    }
+  }).catch(function(){});
+}
+try{var up=sessionStorage.getItem('posm_updated');if(up===APP_VER){sessionStorage.removeItem('posm_updated');setTimeout(function(){toast('Đã cập nhật phiên bản mới')},400)}}catch(e){}
+checkUpdate();
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')checkUpdate()});
 })();
 </script>
 </body>
