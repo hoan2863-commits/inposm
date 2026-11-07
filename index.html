@@ -98,6 +98,11 @@ select.big{width:100%;border:1px solid var(--line);background:var(--surface);bor
 .btn.pri{background:var(--accent);color:var(--accent-fg)}
 .btn:disabled{opacity:.4}
 
+.pairs{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.pairs figure{margin:0;display:grid;gap:4px;justify-items:center;font-size:12px;color:var(--muted)}
+.pairs canvas{width:100%;max-width:150px;height:auto;border:1px solid var(--line);background:#fff}
+.qact .mv{min-width:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface);height:34px}
+.hint2{font-size:12.5px;color:var(--muted)}
 .qempty{text-align:center;padding:36px 12px;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:14px}
 .qlist{display:grid;gap:10px}
 @media (min-width:700px){.qlist{grid-template-columns:1fr 1fr}}
@@ -166,6 +171,7 @@ details li{margin-bottom:6px}
           <button data-s="A5">A5 ngang</button>
           <button data-s="NEP">Nẹp 200×80</button>
         </div>
+        <div class="hint2" id="a5Hint" hidden>Muốn in 2 mẫu A5 khác nhau trên 1 tờ A4: bấm “+ Hàng in” cho từng mẫu, rồi vào Hàng in bật “In A5 trên giấy A4”.</div>
         <label class="sw"><span>Khung viền quanh trang</span><input type="checkbox" id="frChk" checked></label>
       </div>
       <div class="card">
@@ -188,6 +194,11 @@ details li{margin-bottom:6px}
   </section>
 
   <section id="viewQ" hidden>
+    <div class="card" id="pairBox" style="margin-bottom:10px" hidden>
+      <label class="sw"><span><b>In A5 trên giấy A4</b><br><span class="hint">Ghép 2 mẫu A5 (có thể khác nhau) lên 1 tờ A4, cắt đôi</span></span><input type="checkbox" id="pairChk"></label>
+      <div id="pairPrev" class="pairs"></div>
+      <div class="miss" id="pairWarn" hidden></div>
+    </div>
     <div class="qlist" id="qList"></div>
     <div class="row" style="margin-top:10px"><button class="link del" id="qClear">Xóa hết hàng in</button></div>
     <details style="margin-top:10px">
@@ -500,6 +511,7 @@ function drawSize(){
   [].forEach.call($('#sizeSeg').children,function(b){var s=b.dataset.s;b.disabled=ok.indexOf(s)<0;b.setAttribute('aria-pressed',s===S.size);
     b.onclick=function(){if(b.disabled)return;S.size=s;drawSize();refresh()}});
   $('#frChk').checked=S.frame!==false;
+  $('#a5Hint').hidden=S.size!=='A5';
 }
 $('#frChk').onchange=function(){S.frame=this.checked;refresh()};
 function drawForm(){
@@ -558,10 +570,27 @@ function drawQueue(){
     var ed=el('button','link','Sửa');ed.onclick=function(){S=clone(it);S.editId=it.id;switchTab('C');drawTplSel();drawSize();drawForm();refresh()};
     var du=el('button','link','Nhân bản');du.onclick=function(){var n=clone(it);n.id=uid();Q.splice(i+1,0,n);save();drawQueue();toast('Đã nhân bản – bấm Sửa để đổi tên hàng')};
     var de=el('button','link del','Xóa');de.onclick=function(){if(de.dataset.c){Q.splice(i,1);save();drawQueue()}else{de.dataset.c=1;de.textContent='Bấm lần nữa';setTimeout(function(){if(de.isConnected){delete de.dataset.c;de.textContent='Xóa'}},3000)}};
-    act.appendChild(st);act.appendChild(ed);act.appendChild(du);act.appendChild(de);tx.appendChild(act);
+    var up=el('button','mv','↑'),dn=el('button','mv','↓');up.setAttribute('aria-label','Đưa lên');dn.setAttribute('aria-label','Đưa xuống');
+    up.disabled=i===0;dn.disabled=i===Q.length-1;
+    up.onclick=function(){Q.splice(i-1,0,Q.splice(i,1)[0]);save();drawQueue()};dn.onclick=function(){Q.splice(i+1,0,Q.splice(i,1)[0]);save();drawQueue()};
+    act.appendChild(st);act.appendChild(up);act.appendChild(dn);act.appendChild(ed);act.appendChild(du);act.appendChild(de);tx.appendChild(act);
     c.appendChild(cv);c.appendChild(tx);L.appendChild(c);
   });
+  drawPairs();
 }
+/* Ghép A5 lên A4: xem trước từng tờ, cảnh báo tờ lẻ */
+function drawPairs(){
+  var a5=expand(Q,'A5'),box=$('#pairBox'),pv=$('#pairPrev'),w=$('#pairWarn');
+  box.hidden=!a5.length;if(!a5.length)return;
+  $('#pairChk').checked=A5MODE==='a4x2';pv.innerHTML='';w.hidden=true;
+  if(A5MODE!=='a4x2')return;
+  for(var i=0;i<a5.length;i+=2){
+    var f=el('figure'),cv=el('canvas');renderSheet({kind:'A4P2',items:a5.slice(i,i+2)},150*1.6/210,cv);
+    f.appendChild(cv);f.appendChild(el('figcaption',null,'Tờ A4 số '+(i/2+1)));pv.appendChild(f);
+  }
+  if(a5.length%2){w.hidden=false;w.textContent='Tờ cuối chỉ có 1 mẫu A5, nửa dưới để trống. Thêm 1 mẫu A5 nữa hoặc tăng số bản để kín tờ.'}
+}
+$('#pairChk').onchange=function(){A5MODE=this.checked?'a4x2':'a5';save();drawPairs()};
 
 /* ---------- Gom trang theo khổ giấy ---------- */
 function expand(list,size){var o=[];list.forEach(function(it){if(it.size===size)for(var c=0;c<Math.max(1,it.copies|0);c++)o.push(it)});return o}
@@ -712,7 +741,7 @@ var FONTS_READY=(document.fonts&&document.fonts.load?Promise.all(['500','600','8
 drawTplSel();drawSize();drawForm();
 FONTS_READY.then(function(){drawQueue();refresh()});
 /* ---------- Tự cập nhật: luôn dùng một link duy nhất, không cần thêm ?v= ---------- */
-var APP_VER='2026.11.06-8';
+var APP_VER='2026.11.07-1';
 $('#ver').textContent='Phiên bản '+APP_VER;
 function checkUpdate(){
   if(!/^https?:/.test(location.protocol))return;
