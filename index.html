@@ -468,6 +468,22 @@ function drawPoster(ctx,it,bx,by,bw,bh,pxmm){
     drawBlock(ctx,ftb,mid,fy);
   }
 }
+/* Đường cắt giữa 2 mẫu A5: nét đứt ngang cả tờ + biểu tượng kéo + chữ CẮT Ở ĐÂY */
+function drawCut(ctx,W,y,pxmm){
+  ctx.save();
+  var fs=3.2*pxmm;ctx.font=F(800,fs);var label='CẮT Ở ĐÂY',tw=ctx.measureText(label).width,ic=fs*1.5,gap=fs*.6,bw=ic+gap+tw+fs*1.6,cx=W/2;
+  ctx.strokeStyle='#555';ctx.lineWidth=Math.max(1,.35*pxmm);ctx.setLineDash([2.5*pxmm,1.5*pxmm]);
+  ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cx-bw/2,y);ctx.moveTo(cx+bw/2,y);ctx.lineTo(W,y);ctx.stroke();
+  ctx.setLineDash([]);
+  /* kéo: 2 vòng tay cầm + 2 lưỡi bắt chéo */
+  var x0=cx-bw/2+fs*.8,r=fs*.28;ctx.lineWidth=Math.max(1,.3*pxmm);ctx.strokeStyle='#333';
+  ctx.beginPath();ctx.arc(x0+r,y-r*1.25,r,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(x0+r,y+r*1.25,r,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x0+r*1.9,y-r*.7);ctx.lineTo(x0+ic,y+r*1.1);ctx.moveTo(x0+r*1.9,y+r*.7);ctx.lineTo(x0+ic,y-r*1.1);ctx.stroke();
+  ctx.fillStyle='#333';ctx.textAlign='left';var m=ctx.measureText(label);
+  ctx.fillText(label,x0+ic+gap,y+(m.actualBoundingBoxAscent-m.actualBoundingBoxDescent)/2);
+  ctx.restore();
+}
 var DIM={A4L:[297,210],A5L:[210,148],NEP:[297,210],A4P2:[210,297],STRIP:[200,80]};
 var PT={A4L:[841.89,595.28],A5L:[595.28,419.53],NEP:[841.89,595.28],A4P2:[595.28,841.89]};
 function renderSheet(sh,pxmm,cv){
@@ -480,7 +496,7 @@ function renderSheet(sh,pxmm,cv){
   else if(sh.kind==='STRIP'){cut(0,0,cv.width,cv.height);drawPoster(ctx,it[0],0,0,cv.width,cv.height,pxmm)}
   else if(sh.kind==='NEP'){it.forEach(function(x,i){var X=48.5*pxmm,Y=(19+i*92)*pxmm,W=200*pxmm,H=80*pxmm;cut(X,Y,W,H);drawPoster(ctx,x,X,Y,W,H,pxmm)})}
   else if(sh.kind==='A4P2'){it.forEach(function(x,i){drawPoster(ctx,x,0,i*148.5*pxmm,210*pxmm,148*pxmm,pxmm)});
-    ctx.save();ctx.strokeStyle='#9a9a9a';ctx.lineWidth=Math.max(1,.3*pxmm);ctx.setLineDash([3*pxmm,2*pxmm]);ctx.beginPath();ctx.moveTo(0,148.5*pxmm);ctx.lineTo(cv.width,148.5*pxmm);ctx.stroke();ctx.restore()}
+    drawCut(ctx,cv.width,148.5*pxmm,pxmm)}
   return cv;
 }
 function kindOf(it){return it.size==='A4'?'A4L':it.size==='A5'?'A5L':'STRIP'}
@@ -492,6 +508,11 @@ var S={tpl:'gia_gach',size:'A4',copies:1,editId:null,frame:true,
   d:{tag:'GIÁ TỐT',ten:'CẢI NGỌT ĐÀ LẠT 300G',goc:'15.000',gia:'9.900',dvt:'gói',cond:'Số lượng có hạn',tu:iso(today),den:iso(t2)}};
 var Q=[],A5MODE='a5';
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');if(sv){if(sv.S)S=sv.S;if(sv.Q)Q=sv.Q;if(sv.A5MODE)A5MODE=sv.A5MODE}}catch(e){}
+/* Làm sạch dữ liệu lưu (phòng bản cũ/hỏng): mẫu lạ, thiếu nội dung, khổ không hợp lệ */
+function okItem(x){if(!x||typeof x!=='object'||!TP[x.tpl])return false;if(!x.d||typeof x.d!=='object')x.d={};if(TP[x.tpl].s.indexOf(x.size)<0)x.size=TP[x.tpl].s[0];x.copies=Math.max(1,Math.min(99,parseInt(x.copies,10)||1));return true}
+if(!okItem(S)){S={tpl:'gia_gach',size:'A4',copies:1,editId:null,frame:true,d:{}}}
+Q=Array.isArray(Q)?Q.filter(okItem):[];Q.forEach(function(q){if(!q.id)q.id=uid()});
+if(A5MODE!=='a5'&&A5MODE!=='a4x2')A5MODE='a5';
 function save(){try{localStorage.setItem(KEY,JSON.stringify({S:S,Q:Q,A5MODE:A5MODE}))}catch(e){}}
 function clone(o){return JSON.parse(JSON.stringify(o))}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
@@ -682,7 +703,7 @@ async function doExport(g,act){
   }catch(e){toast('Không xuất được: '+(e&&e.message||e))}
   finally{BUSY=false;prog('')}
 }
-window.addEventListener('afterprint',function(){$('#printRoot').innerHTML=''});
+/* không xóa ảnh in sau khi in: Android có thể còn đang dựng bản in; lần in sau sẽ thay thế */
 
 /* ---------- Bảng xuất ---------- */
 var SCOPE='cur';
@@ -741,7 +762,7 @@ var FONTS_READY=(document.fonts&&document.fonts.load?Promise.all(['500','600','8
 drawTplSel();drawSize();drawForm();
 FONTS_READY.then(function(){drawQueue();refresh()});
 /* ---------- Tự cập nhật: luôn dùng một link duy nhất, không cần thêm ?v= ---------- */
-var APP_VER='2026.11.07-1';
+var APP_VER='2026.11.07-2';
 $('#ver').textContent='Phiên bản '+APP_VER;
 function checkUpdate(){
   if(!/^https?:/.test(location.protocol))return;
